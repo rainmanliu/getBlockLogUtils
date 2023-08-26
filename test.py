@@ -13,14 +13,27 @@ def main():
     # test_from_block = 17967800
     # test_from_block =
     MarcoAddress = '0x4fE898667Ba84f2691b4dBf1bfD98Ff7BBAAcbEE'
-    # NaturalETH().find_all_transactions(sender=MarcoAddress)
-    # BridgedETH().find_all_transactions(sender='enoshka13.near', from_block='1643483291725895435', to_block='1643483902107328855', receive_account="app.nearcrowd.near")
-    # NaturalNEAR().find_all_transactions(sender='enoshka13.near', from_block='1643483291725895435', to_block='1643483902107328855', receive_account="app.nearcrowd.near")
-    # BridgedNEAR().find_all_transactions(sender=MarcoAddress)
-    for token in Config.FEATURED_ERC20.value:
-        # NaturalErc20().find_all_transactions(sender=MarcoAddress, erc20_address=token)
-        BridgedNep141().find_all_transactions(sender=MarcoAddress, erc20_address=token)
+    print("***** eth lock txs")
+    NaturalETH().find_all_transactions(sender=MarcoAddress)
+    print("***** eth burn txs")
+    BridgedETH().find_all_transactions(sender='sunhao.near')
 
+    print("***** near lock txs")
+    NaturalNEAR().find_all_transactions(sender='sunhao.near')
+    print("***** near burn txs")
+    BridgedNEAR().find_all_transactions(sender=MarcoAddress)
+
+    erc20_lock_list, erc20_burn_list = [], []
+    for token in Config.FEATURED_ERC20.value:
+        lock_list = NaturalErc20().find_all_transactions(sender=MarcoAddress, erc20_address=token)
+        erc20_lock_list.extend(lock_list)
+        burn_list = BridgedNep141().find_all_transactions(sender=MarcoAddress, erc20_address=token)
+        erc20_burn_list.extend(burn_list)
+
+    print(f"***** Erc20: lock txs")
+    print(erc20_lock_list)
+    print(f"***** BridgeErc20:burn txs")
+    print(erc20_burn_list)
 
 if __name__ == '__main__':
     main()

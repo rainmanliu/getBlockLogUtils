@@ -6,6 +6,7 @@ import json
 from typing import List
 import ctc
 import requests
+import urllib3
 import web3
 import pprint
 from utils import Web3Client
@@ -29,8 +30,6 @@ class NaturalETH(object):
             argument_filters={"sender": sender}
         )
         all_events = contract_filter.get_all_entries()
-        pprint.pprint(all_events)
-        print(len(all_events))
 
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
@@ -41,16 +40,17 @@ class NaturalETH(object):
 
 class BridgedETH(object):
 
-    def find_all_transactions(self, sender: str, from_block: int, to_block: int | str = 'latest',
-                              receive_account: str = Config.AURORA_EVM_ACCOUNT.value):
+    def find_all_transactions(self, sender: str, from_block: int | str = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value,
+                              to_block: int | str = 'latest', receive_account: str = Config.AURORA_EVM_ACCOUNT.value):
         # aurora_evm_account = 'aurora'
         # req_url = f"https://mainnet-indexer.ref-finance.com/call-indexer"
+        urllib3.disable_warnings()
         rep = requests.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
             "receiver_account_id": receive_account
-        })
+        },verify=False)
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if tx['args']['method_name'] == 'withdraw']
         print(result)
@@ -59,14 +59,16 @@ class BridgedETH(object):
 
 class NaturalNEAR(object):
 
-    def find_all_transactions(self, sender: str, from_block: int, to_block: int | str = 'latest',
+    def find_all_transactions(self, sender: str, from_block: int | str = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value,
+                              to_block: int | str = 'latest',
                               receive_account: str = Config.NATIVE_NEAR_LOCKER_ADDRESS.value):
+        urllib3.disable_warnings()
         rep = requests.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
             "receiver_account_id": receive_account
-        })
+        },verify=False)
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if
                   tx['args']['method_name'] == 'migrate_to_ethereum']
@@ -88,8 +90,6 @@ class BridgedNEAR(object):
             argument_filters={"sender": sender}
         )
         all_events = contract_filter.get_all_entries()
-        pprint.pprint(all_events)
-        print(len(all_events))
 
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
@@ -111,17 +111,13 @@ class NaturalErc20():
         contract_filter = contract.events.Locked.create_filter(
             fromBlock=from_block,
             toBlock=to_block,
-            # address=sender_address,
-            # erc20Address=erc20_address,
             argument_filters={"sender": sender, "token": erc20_address}
         )
         all_events = contract_filter.get_all_entries()
-        pprint.pprint(all_events)
-        print(len(all_events))
 
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
-                        not e['args']['recipient'].startswith('aurora:')]
+                        not e['args']['accountId'].startswith('aurora:')]
         print(tx_hash_list)
         return tx_hash_list
 
@@ -142,16 +138,16 @@ class BridgedNep141():
         return nep141_address
 
     def find_all_transactions(self, sender: str, erc20_address: str,
-                              from_block: int = Config.ETH_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
-
+                              from_block: int = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
         nep141_address = self._get_nep141_address(erc20_address)
 
+        urllib3.disable_warnings()
         rep = requests.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
             "receiver_account_id": nep141_address
-        })
+        }, verify=False)
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if
                   tx['args']['method_name'] == 'withdraw']
