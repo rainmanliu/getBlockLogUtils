@@ -9,12 +9,18 @@ import requests
 import urllib3
 import web3
 import pprint
-from utils import Web3Client
+
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
+
+from utils import Web3Client, AsyncWeb3Client
 from config import Config
+import asyncio
+from aiohttp import ClientSession
+
 
 client = Web3Client()
 w3 = client.get_web3()
-
 
 class NaturalETH(object):
 
@@ -41,10 +47,12 @@ class BridgedETH(object):
 
     def find_all_transactions(self, sender: str, from_block: int | str = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value,
                               to_block: int | str = 'latest', receive_account: str = Config.AURORA_EVM_ACCOUNT.value):
-        # aurora_evm_account = 'aurora'
-        # req_url = f"https://mainnet-indexer.ref-finance.com/call-indexer"
-        urllib3.disable_warnings()
-        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        rep = session.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
@@ -60,8 +68,12 @@ class NaturalNEAR(object):
     def find_all_transactions(self, sender: str, from_block: int | str = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value,
                               to_block: int | str = 'latest',
                               receive_account: str = Config.NATIVE_NEAR_LOCKER_ADDRESS.value):
-        urllib3.disable_warnings()
-        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        rep = session.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
@@ -136,8 +148,13 @@ class BridgedNep141():
                               from_block: int = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
         nep141_address = self._get_nep141_address(erc20_address)
 
-        urllib3.disable_warnings()
-        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
+        rep = session.get(Config.CALL_INDEXER_API.value, params={
             "from_block": from_block,
             "to_block": to_block,
             "predecessor_account_id": sender,
@@ -148,3 +165,19 @@ class BridgedNep141():
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if
                   tx['args']['method_name'] == 'withdraw']
         return result
+
+    async def async_find_all_transactions(self, sender: str, erc20_address: str,
+                              from_block: int = Config.NEAR_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
+        async with ClientSession() as session:
+            nep141_address = self._get_nep141_address(erc20_address)
+            async with session.get(Config.CALL_INDEXER_API.value, params={
+                "from_block": from_block,
+                "to_block": to_block,
+                "predecessor_account_id": sender,
+                "receiver_account_id": nep141_address
+            }) as response:
+                tx_res = await response.text()
+                tx_res = json.loads(tx_res)
+                result = [tx['originated_from_transaction_hash'] for tx in tx_res if
+                          tx['args']['method_name'] == 'withdraw']
+                return result
