@@ -2,56 +2,158 @@
 # @Author : HanyuLiu/Rainman
 # @Email : rainman@ref.finance
 # @File : get_tx_history.py.py
+import json
 from typing import List
 import ctc
-
+import requests
 import web3
+import pprint
+from utils import Web3Client
+from config import Config
+
+client = Web3Client()
+w3 = client.get_web3()
 
 
-class EthTransferHistory():
+class NaturalETH(object):
 
-    async def find_all_lock_transactions(self):
-        events = await ctc.async_get_events(
-            contract_address='0x23Ddd3e3692d1861Ed57EDE224608875809e127f',
-            event_name='Lock',
-            start_block=17967800
+    def find_all_transactions(self, sender: str, from_block: int = Config.ETH_AUTO_SYNC_FROM_BLOCK.value,
+                              to_block: int | str = 'latest'):
+        ether_custodian_abi = json.loads(Config.ETHER_CUSTODIAN_ABI.value)
+        ether_custodian_address = Config.ETHER_CUSTODIAN_ADDRESS.value
+        contract = w3.eth.contract(address=ether_custodian_address, abi=ether_custodian_abi)
+        contract_filter = contract.events.Deposited.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            # address=sender_address,
+            argument_filters={"sender": sender}
         )
+        all_events = contract_filter.get_all_entries()
+        pprint.pprint(all_events)
+        print(len(all_events))
 
-        print(events)
-
-    def find_all_burn_transactions(self):
-        pass
-
-
-class NearTransferHistory():
-
-    def find_all_lock_transactions(self):
-        pass
-
-    def find_all_withdraw_transactions(self):
-        pass
+        # remove recipient startwith aurora，return transactionHash list
+        tx_hash_list = [e['transactionHash'].hex() for e in all_events if
+                        not e['args']['recipient'].startswith('aurora:')]
+        print(tx_hash_list)
+        return tx_hash_list
 
 
-class TokensTransferHistory():
+class BridgedETH(object):
+
+    def find_all_transactions(self, sender: str, from_block: int, to_block: int | str = 'latest',
+                              receive_account: str = Config.AURORA_EVM_ACCOUNT.value):
+        # aurora_evm_account = 'aurora'
+        # req_url = f"https://mainnet-indexer.ref-finance.com/call-indexer"
+        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+            "from_block": from_block,
+            "to_block": to_block,
+            "predecessor_account_id": sender,
+            "receiver_account_id": receive_account
+        })
+        tx_res = rep.json()
+        result = [tx['originated_from_transaction_hash'] for tx in tx_res if tx['args']['method_name'] == 'withdraw']
+        print(result)
+        return result
+
+
+class NaturalNEAR(object):
+
+    def find_all_transactions(self, sender: str, from_block: int, to_block: int | str = 'latest',
+                              receive_account: str = Config.NATIVE_NEAR_LOCKER_ADDRESS.value):
+        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+            "from_block": from_block,
+            "to_block": to_block,
+            "predecessor_account_id": sender,
+            "receiver_account_id": receive_account
+        })
+        tx_res = rep.json()
+        result = [tx['originated_from_transaction_hash'] for tx in tx_res if
+                  tx['args']['method_name'] == 'migrate_to_ethereum']
+        print(result)
+        return result
+
+
+class BridgedNEAR(object):
+
+    def find_all_transactions(self, sender: str,
+                              from_block: int = Config.ETH_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
+        enear_abi = json.loads(Config.E_NEAR_ABI.value)
+        enear_address = w3.to_checksum_address(Config.E_NEAR_ADDRESS.value)
+        contract = w3.eth.contract(address=enear_address, abi=enear_abi)
+        contract_filter = contract.events.TransferToNearInitiated.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            # address=sender_address,
+            argument_filters={"sender": sender}
+        )
+        all_events = contract_filter.get_all_entries()
+        pprint.pprint(all_events)
+        print(len(all_events))
+
+        # remove recipient startwith aurora，return transactionHash list
+        tx_hash_list = [e['transactionHash'].hex() for e in all_events if
+                        not e['args']['accountId'].startswith('aurora:')]
+        print(tx_hash_list)
+        return tx_hash_list
+
+
+class NaturalErc20():
     """
     nep141 - erc20
     """
-    # Default Erc20 token
-    TOKENS = []
 
-    def __init__(self, tokens: List[str]):
-        self.tokens = tokens
+    def find_all_transactions(self, sender: str, erc20_address: str,
+                              from_block: int = Config.ETH_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
+        erc20_locker_abi = json.loads(Config.ERC20_LOCKER_ABI.value)
+        erc20_locker_address = w3.to_checksum_address(Config.ERC20_LOCKER_ADDRESS.value)
+        contract = w3.eth.contract(address=erc20_locker_address, abi=erc20_locker_abi)
+        contract_filter = contract.events.Locked.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            # address=sender_address,
+            # erc20Address=erc20_address,
+            argument_filters={"sender": sender, "token": erc20_address}
+        )
+        all_events = contract_filter.get_all_entries()
+        pprint.pprint(all_events)
+        print(len(all_events))
 
-    def find_erc20_lock_transactions(self):
-        pass
+        # remove recipient startwith aurora，return transactionHash list
+        tx_hash_list = [e['transactionHash'].hex() for e in all_events if
+                        not e['args']['recipient'].startswith('aurora:')]
+        print(tx_hash_list)
+        return tx_hash_list
 
-    def find_nep141_burn_transactions(self, fromBlock: str, toBlock: str, sender: str, erc20Address: str):
-        """
-        Find all withdraw(burn) transactions sending nep141Address tokens from NEAR to Ethereum.
-        :param fromBlock:
-        :param toBlock:
-        :param sender:
-        :param erc20Address:
-        :return:
-        """
-        pass
+
+class BridgedNep141():
+    """
+    nep141 - erc20
+    """
+
+    def _get_nep141_address(self, erc20_address):
+        nep141Factory = Config.NEAR_TOKEN_FACTORY_ACCOUNT.value
+
+        # remove 0x prefix  and lower
+        erc20_addr = w3.to_checksum_address(erc20_address)[2:].lower()
+        # 拼接Nep141地址
+        nep141_address = f"{erc20_addr}.{nep141Factory}"
+
+        return nep141_address
+
+    def find_all_transactions(self, sender: str, erc20_address: str,
+                              from_block: int = Config.ETH_AUTO_SYNC_FROM_BLOCK.value, to_block: int | str = 'latest'):
+
+        nep141_address = self._get_nep141_address(erc20_address)
+
+        rep = requests.get(Config.CALL_INDEXER_API.value, params={
+            "from_block": from_block,
+            "to_block": to_block,
+            "predecessor_account_id": sender,
+            "receiver_account_id": nep141_address
+        })
+        tx_res = rep.json()
+        result = [tx['originated_from_transaction_hash'] for tx in tx_res if
+                  tx['args']['method_name'] == 'withdraw']
+        print(result)
+        return result
