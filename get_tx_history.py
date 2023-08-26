@@ -34,7 +34,6 @@ class NaturalETH(object):
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
                         not e['args']['recipient'].startswith('aurora:')]
-        print(tx_hash_list)
         return tx_hash_list
 
 
@@ -53,7 +52,6 @@ class BridgedETH(object):
         },verify=False)
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if tx['args']['method_name'] == 'withdraw']
-        print(result)
         return result
 
 
@@ -72,7 +70,6 @@ class NaturalNEAR(object):
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if
                   tx['args']['method_name'] == 'migrate_to_ethereum']
-        print(result)
         return result
 
 
@@ -94,7 +91,6 @@ class BridgedNEAR(object):
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
                         not e['args']['accountId'].startswith('aurora:')]
-        print(tx_hash_list)
         return tx_hash_list
 
 
@@ -118,7 +114,6 @@ class NaturalErc20():
         # remove recipient startwith aurora，return transactionHash list
         tx_hash_list = [e['transactionHash'].hex() for e in all_events if
                         not e['args']['accountId'].startswith('aurora:')]
-        print(tx_hash_list)
         return tx_hash_list
 
 
@@ -134,7 +129,7 @@ class BridgedNep141():
         erc20_addr = w3.to_checksum_address(erc20_address)[2:].lower()
         # 拼接Nep141地址
         nep141_address = f"{erc20_addr}.{nep141Factory}"
-
+        print(nep141_address)
         return nep141_address
 
     def find_all_transactions(self, sender: str, erc20_address: str,
@@ -148,8 +143,8 @@ class BridgedNep141():
             "predecessor_account_id": sender,
             "receiver_account_id": nep141_address
         }, verify=False)
+        print(rep.url)
         tx_res = rep.json()
         result = [tx['originated_from_transaction_hash'] for tx in tx_res if
                   tx['args']['method_name'] == 'withdraw']
-        print(result)
         return result

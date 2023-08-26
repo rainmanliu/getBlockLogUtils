@@ -47,4 +47,5 @@ class Config(Enum):
         '0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e',
         '0x111111111117dc0aa78b770fa6a738034120c302',
         '0xa4ef4b0b23c1fc81d3f9ecf93510e64f58a4a016',
+        '0xaaaaaa20d9e0e2461697782ef11675f668207961'
     ]
